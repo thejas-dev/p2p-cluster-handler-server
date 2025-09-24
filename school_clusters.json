@@ -1,0 +1,86 @@
+{
+  "123": {
+    "clusters": {
+      "123_1": {
+        "clusterNumber": 1,
+        "devices": [
+          {
+            "deviceId": "AS89B2",
+            "registeredAt": "2025-09-24T12:59:03.145Z"
+          },
+          {
+            "deviceId": "A189B2",
+            "registeredAt": "2025-09-24T12:59:16.216Z"
+          },
+          {
+            "deviceId": "A1892",
+            "registeredAt": "2025-09-24T12:59:20.125Z"
+          },
+          {
+            "deviceId": "A189B21",
+            "registeredAt": "2025-09-24T12:59:47.910Z"
+          },
+          {
+            "deviceId": "A189B212",
+            "registeredAt": "2025-09-24T12:59:48.856Z"
+          },
+          {
+            "deviceId": "A189B23",
+            "registeredAt": "2025-09-24T12:59:52.166Z"
+          },
+          {
+            "deviceId": "A189B24",
+            "registeredAt": "2025-09-24T12:59:53.685Z"
+          },
+          {
+            "deviceId": "A189B25",
+            "registeredAt": "2025-09-24T12:59:56.339Z"
+          },
+          {
+            "deviceId": "A189B26",
+            "registeredAt": "2025-09-24T13:00:05.646Z"
+          },
+          {
+            "deviceId": "A189B27",
+            "registeredAt": "2025-09-24T13:00:08.765Z"
+          }
+        ],
+        "hosts": [
+          "AS89B2",
+          "A189B2",
+          "A1892"
+        ],
+        "createdAt": "2025-09-24T12:59:03.145Z"
+      },
+      "123_2": {
+        "clusterNumber": 2,
+        "devices": [
+          {
+            "deviceId": "A189B28",
+            "registeredAt": "2025-09-24T13:00:14.979Z"
+          },
+          {
+            "deviceId": "A189B211",
+            "registeredAt": "2025-09-24T13:01:21.543Z"
+          },
+          {
+            "deviceId": "A189B2112",
+            "registeredAt": "2025-09-24T13:01:24.645Z"
+          },
+          {
+            "deviceId": "A189B2123",
+            "registeredAt": "2025-09-24T13:01:41.345Z"
+          }
+        ],
+        "hosts": [
+          "A189B28",
+          "A189B211",
+          "A189B2112"
+        ],
+        "createdAt": "2025-09-24T13:00:14.979Z"
+      }
+    },
+    "totalDevices": 14,
+    "lastClusterNumber": 2
+  }
+}

@@ -4,11 +4,16 @@ const path = require('path');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3333;
-const DATA_FILE = path.join(__dirname, 'school_devices.json');
+const PORT = process.env.PORT || 3000;
+const DATA_FILE = path.join(__dirname, 'school_clusters.json');
+
+// Configuration
+const MAX_DEVICES_PER_CLUSTER = 10;
+const MAX_HOSTS_PER_CLUSTER = 3;
 
 // Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Initialize data structure
 let schoolData = {};
@@ -40,10 +45,60 @@ async function saveData() {
     }
 }
 
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  next(); // move to the next middleware or route handler
-});
+// Helper function to find or create appropriate cluster
+function findOrCreateCluster(schoolCode, deviceId) {
+    // Initialize school if it doesn't exist
+    if (!schoolData[schoolCode]) {
+        schoolData[schoolCode] = {
+            clusters: {},
+            totalDevices: 0,
+            lastClusterNumber: 0
+        };
+    }
+
+    const school = schoolData[schoolCode];
+
+    // Check if device already exists in any cluster
+    for (const clusterName in school.clusters) {
+        const cluster = school.clusters[clusterName];
+        const existingDevice = cluster.devices.find(device => device.deviceId === deviceId);
+        if (existingDevice) {
+            return {
+                clusterName: clusterName,
+                cluster: cluster,
+                isExisting: true
+            };
+        }
+    }
+
+    // Device doesn't exist, find a cluster with space or create new one
+    for (const clusterName in school.clusters) {
+        const cluster = school.clusters[clusterName];
+        if (cluster.devices.length < MAX_DEVICES_PER_CLUSTER) {
+            return {
+                clusterName: clusterName,
+                cluster: cluster,
+                isExisting: false
+            };
+        }
+    }
+
+    // All clusters are full, create a new cluster
+    school.lastClusterNumber += 1;
+    const newClusterName = `${schoolCode}_${school.lastClusterNumber}`;
+    school.clusters[newClusterName] = {
+        clusterNumber: school.lastClusterNumber,
+        devices: [],
+        hosts: [],
+        createdAt: new Date().toISOString()
+    };
+
+    return {
+        clusterName: newClusterName,
+        cluster: school.clusters[newClusterName],
+        isExisting: false
+    };
+}
 
 // API endpoint to register/get host devices
 app.post('/api/get-hosts', async (req, res) => {
@@ -58,83 +113,83 @@ app.post('/api/get-hosts', async (req, res) => {
             });
         }
 
-        // Initialize school if it doesn't exist
-        if (!schoolData[schoolCode]) {
-            schoolData[schoolCode] = {
-                devices: [],
-                hosts: []
-            };
-        }
+        // Find or create appropriate cluster
+        const { clusterName, cluster, isExisting } = findOrCreateCluster(schoolCode, deviceId);
 
-        const school = schoolData[schoolCode];
-        
-        // Check if device already exists
-        const existingDeviceIndex = school.devices.findIndex(device => device.deviceId === deviceId);
-        
-        if (existingDeviceIndex === -1) {
-            // New device - add to the list
-            school.devices.push({
+        if (!isExisting) {
+            // Add new device to cluster
+            cluster.devices.push({
                 deviceId: deviceId,
                 registeredAt: new Date().toISOString()
             });
 
-            // Update hosts list (max 3 hosts)
-            if (school.hosts.length < 3) {
-                school.hosts.push(deviceId);
+            // Update hosts list (max 3 hosts per cluster)
+            if (cluster.hosts.length < MAX_HOSTS_PER_CLUSTER) {
+                cluster.hosts.push(deviceId);
             }
+
+            // Update school total devices count
+            schoolData[schoolCode].totalDevices += 1;
         }
 
-        // Prepare response based on current device position
-        const deviceIndex = school.devices.findIndex(device => device.deviceId === deviceId);
+        // Find device position in cluster
+        const deviceIndex = cluster.devices.findIndex(device => device.deviceId === deviceId);
+        
+        // Prepare response based on current device position in cluster
         const response = {
             success: true,
             schoolCode: schoolCode,
+            clusterName: clusterName,
+            clusterNumber: cluster.clusterNumber,
             deviceId: deviceId,
-            position: deviceIndex + 1,
-            totalDevices: school.devices.length
+            positionInCluster: deviceIndex + 1,
+            totalDevicesInCluster: cluster.devices.length,
+            totalDevicesInSchool: schoolData[schoolCode].totalDevices,
+            maxDevicesPerCluster: MAX_DEVICES_PER_CLUSTER
         };
 
-        // Determine response based on device position
+        // Determine response based on device position in cluster
         if (deviceIndex === 0) {
-            // First device (Host 1)
+            // First device in cluster (Host 1)
             response.hostDeviceId = deviceId;
             response.role = 'host1';
-            response.message = 'You are the primary host';
+            response.message = `You are the primary host for cluster ${clusterName}`;
         } else if (deviceIndex === 1) {
-            // Second device (Host 2)
-            response.hostDeviceId = school.hosts[0]; // Return first host
+            // Second device in cluster (Host 2)
+            response.hostDeviceId = cluster.hosts[0]; // Return first host
             response.host2DeviceId = deviceId;
             response.role = 'host2';
-            response.message = 'You are the secondary host';
+            response.message = `You are the secondary host for cluster ${clusterName}`;
         } else if (deviceIndex === 2) {
-            // Third device (Host 3)
-            response.hostDeviceId = school.hosts[0]; // Return first host
-            response.host2DeviceId = school.hosts[1]; // Return second host
+            // Third device in cluster (Host 3)
+            response.hostDeviceId = cluster.hosts[0]; // Return first host
+            response.host2DeviceId = cluster.hosts[1]; // Return second host
             response.host3DeviceId = deviceId;
             response.role = 'host3';
-            response.message = 'You are the tertiary host';
+            response.message = `You are the tertiary host for cluster ${clusterName}`;
         } else {
-            // Fourth device onwards (Client devices)
-            response.hostDeviceId = school.hosts[0]; // Host 1
-            response.host2DeviceId = school.hosts[1]; // Host 2
-            response.host3DeviceId = school.hosts[2]; // Host 3
+            // Fourth device onwards in cluster (Client devices)
+            response.hostDeviceId = cluster.hosts[0]; // Host 1
+            response.host2DeviceId = cluster.hosts[1]; // Host 2
+            response.host3DeviceId = cluster.hosts[2]; // Host 3
             response.role = 'client';
-            response.message = 'You are a client device';
+            response.message = `You are a client device in cluster ${clusterName}`;
         }
 
-        // Add all hosts to response for clarity
-        response.hosts = {
-            host1: school.hosts[0] || null,
-            host2: school.hosts[1] || null,
-            host3: school.hosts[2] || null
+        // Add all hosts in cluster to response for clarity
+        response.clusterHosts = {
+            host1: cluster.hosts[0] || null,
+            host2: cluster.hosts[1] || null,
+            host3: cluster.hosts[2] || null
         };
+
+        // Add cluster devices list
+        response.clusterDevices = cluster.devices.map(device => device.deviceId);
 
         // Save data to file
         await saveData();
 
-        console.log(response);
-
-        return res.json(response);
+        res.json(response);
 
     } catch (error) {
         console.error('Error processing request:', error);
@@ -158,16 +213,77 @@ app.get('/api/school/:schoolCode', (req, res) => {
         }
 
         const school = schoolData[schoolCode];
+        
+        // Prepare cluster summary
+        const clusterSummary = {};
+        for (const clusterName in school.clusters) {
+            const cluster = school.clusters[clusterName];
+            clusterSummary[clusterName] = {
+                clusterNumber: cluster.clusterNumber,
+                totalDevices: cluster.devices.length,
+                hosts: cluster.hosts,
+                devices: cluster.devices.map(device => device.deviceId),
+                isFull: cluster.devices.length >= MAX_DEVICES_PER_CLUSTER,
+                createdAt: cluster.createdAt
+            };
+        }
+
         res.json({
             success: true,
             schoolCode: schoolCode,
-            totalDevices: school.devices.length,
-            hosts: school.hosts,
-            devices: school.devices
+            totalDevices: school.totalDevices,
+            totalClusters: Object.keys(school.clusters).length,
+            lastClusterNumber: school.lastClusterNumber,
+            maxDevicesPerCluster: MAX_DEVICES_PER_CLUSTER,
+            clusters: clusterSummary
         });
 
     } catch (error) {
         console.error('Error getting school info:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
+// API endpoint to get specific cluster information
+app.get('/api/school/:schoolCode/cluster/:clusterNumber', (req, res) => {
+    try {
+        const { schoolCode, clusterNumber } = req.params;
+        
+        if (!schoolData[schoolCode]) {
+            return res.status(404).json({
+                success: false,
+                message: 'School not found'
+            });
+        }
+
+        const clusterName = `${schoolCode}_${clusterNumber}`;
+        const cluster = schoolData[schoolCode].clusters[clusterName];
+
+        if (!cluster) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cluster not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            schoolCode: schoolCode,
+            clusterName: clusterName,
+            clusterNumber: cluster.clusterNumber,
+            totalDevices: cluster.devices.length,
+            maxDevices: MAX_DEVICES_PER_CLUSTER,
+            isFull: cluster.devices.length >= MAX_DEVICES_PER_CLUSTER,
+            hosts: cluster.hosts,
+            devices: cluster.devices,
+            createdAt: cluster.createdAt
+        });
+
+    } catch (error) {
+        console.error('Error getting cluster info:', error);
         res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -204,21 +320,60 @@ app.delete('/api/school/:schoolCode', async (req, res) => {
     }
 });
 
+// API endpoint to reset specific cluster data
+app.delete('/api/school/:schoolCode/cluster/:clusterNumber', async (req, res) => {
+    try {
+        const { schoolCode, clusterNumber } = req.params;
+        
+        if (!schoolData[schoolCode]) {
+            return res.status(404).json({
+                success: false,
+                message: 'School not found'
+            });
+        }
+
+        const clusterName = `${schoolCode}_${clusterNumber}`;
+        const cluster = schoolData[schoolCode].clusters[clusterName];
+
+        if (!cluster) {
+            return res.status(404).json({
+                success: false,
+                message: 'Cluster not found'
+            });
+        }
+
+        // Update school total devices count
+        schoolData[schoolCode].totalDevices -= cluster.devices.length;
+        
+        // Remove cluster
+        delete schoolData[schoolCode].clusters[clusterName];
+        
+        await saveData();
+        
+        res.json({
+            success: true,
+            message: `Cluster ${clusterName} reset successfully`
+        });
+
+    } catch (error) {
+        console.error('Error resetting cluster data:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Internal server error'
+        });
+    }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({
         success: true,
         message: 'Server is running',
-        timestamp: new Date().toISOString()
-    });
-});
-
-// Ping pong endpoint
-app.get('/ping', (req, res) => {
-    res.json({
-        success: true,
-        message: 'Pong',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        config: {
+            maxDevicesPerCluster: MAX_DEVICES_PER_CLUSTER,
+            maxHostsPerCluster: MAX_HOSTS_PER_CLUSTER
+        }
     });
 });
 
@@ -247,6 +402,8 @@ async function startServer() {
             console.log(`Server is running on port ${PORT}`);
             console.log(`Health check: http://localhost:${PORT}/health`);
             console.log(`Main API: POST http://localhost:${PORT}/api/get-hosts`);
+            console.log(`Max devices per cluster: ${MAX_DEVICES_PER_CLUSTER}`);
+            console.log(`Max hosts per cluster: ${MAX_HOSTS_PER_CLUSTER}`);
         });
     } catch (error) {
         console.error('Failed to start server:', error);
@@ -255,10 +412,3 @@ async function startServer() {
 }
 
 startServer();
-
-// const express = require("express");
-// const app = express();
-
-// app.listen(3333,() => {
-//     console.log("Running the app");
-// });
