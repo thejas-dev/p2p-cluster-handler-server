@@ -1,0 +1,23 @@
+{
+  "8086": {
+    "devices": [
+      {
+        "deviceId": "Q018UH",
+        "registeredAt": "2025-09-24T10:47:29.828Z"
+      },
+      {
+        "deviceId": "D00VZ1",
+        "registeredAt": "2025-09-24T10:48:04.122Z"
+      },
+      {
+        "deviceId": "O05DO0",
+        "registeredAt": "2025-09-24T10:49:20.940Z"
+      }
+    ],
+    "hosts": [
+      "Q018UH",
+      "D00VZ1",
+      "O05DO0"
+    ]
+  }
+}
