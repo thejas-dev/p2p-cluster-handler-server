@@ -11,6 +11,18 @@ const DATA_FILE = path.join(__dirname, 'school_clusters.json');
 const MAX_DEVICES_PER_CLUSTER = 10;
 const MAX_HOSTS_PER_CLUSTER = 3;
 
+// WiFi 5GHz frequency channels (in MHz)
+const FREQUENCY_CHANNELS = [
+    5180, 5200, 5220, 5240, 5260, 5280, 5300, 5320,
+    5500, 5520, 5540, 5560, 5580, 5600, 5620, 5640,
+    5660, 5680, 5700, 5720, 5745, 5765, 5785, 5805, 5825
+];
+
+// Helper function to get random frequency channel
+function getRandomFrequency() {
+    return FREQUENCY_CHANNELS[Math.floor(Math.random() * FREQUENCY_CHANNELS.length)];
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -90,7 +102,8 @@ function findOrCreateCluster(schoolCode, deviceId) {
         clusterNumber: school.lastClusterNumber,
         devices: [],
         hosts: [],
-        createdAt: new Date().toISOString()
+      frequency: getRandomFrequency(),
+      createdAt: new Date().toISOString(),
     };
 
     return {
@@ -145,7 +158,8 @@ app.post('/api/get-hosts', async (req, res) => {
             positionInCluster: deviceIndex + 1,
             totalDevicesInCluster: cluster.devices.length,
             totalDevicesInSchool: schoolData[schoolCode].totalDevices,
-            maxDevicesPerCluster: MAX_DEVICES_PER_CLUSTER
+          maxDevicesPerCluster: MAX_DEVICES_PER_CLUSTER,
+          frequency: cluster.frequency,
         };
 
         // Determine response based on device position in cluster
@@ -225,6 +239,7 @@ app.get('/api/school/:schoolCode', (req, res) => {
                 devices: cluster.devices.map(device => device.deviceId),
                 isFull: cluster.devices.length >= MAX_DEVICES_PER_CLUSTER,
                 createdAt: cluster.createdAt
+              frequency: cluster.frequency,
             };
         }
 
@@ -280,6 +295,7 @@ app.get('/api/school/:schoolCode/cluster/:clusterNumber', (req, res) => {
             hosts: cluster.hosts,
             devices: cluster.devices,
             createdAt: cluster.createdAt
+          frequency: cluster.frequency,
         });
 
     } catch (error) {
