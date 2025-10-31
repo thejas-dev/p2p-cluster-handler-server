@@ -58,68 +58,70 @@ async function saveData() {
 }
 
 // Helper function to find or create appropriate cluster
-function findOrCreateCluster(schoolCode, deviceId) {
-    // Initialize school if it doesn't exist
-    if (!schoolData[schoolCode]) {
-        schoolData[schoolCode] = {
-            clusters: {},
-            totalDevices: 0,
-            lastClusterNumber: 0
-        };
-    }
-
-    const school = schoolData[schoolCode];
-
-    // Check if device already exists in any cluster
-    for (const clusterName in school.clusters) {
-        const cluster = school.clusters[clusterName];
-        const existingDevice = cluster.devices.find(device => device.deviceId === deviceId);
-        if (existingDevice) {
-            return {
-                clusterName: clusterName,
-                cluster: cluster,
-                isExisting: true
-            };
-        }
-    }
-
-    // Device doesn't exist, find a cluster with space or create new one
-    for (const clusterName in school.clusters) {
-        const cluster = school.clusters[clusterName];
-        if (cluster.devices.length < MAX_DEVICES_PER_CLUSTER) {
-            return {
-                clusterName: clusterName,
-                cluster: cluster,
-                isExisting: false
-            };
-        }
-    }
-
-    // All clusters are full, create a new cluster
-    school.lastClusterNumber += 1;
-    const newClusterName = `${schoolCode}_${school.lastClusterNumber}`;
-    school.clusters[newClusterName] = {
-        clusterNumber: school.lastClusterNumber,
-        devices: [],
-        hosts: [],
-      frequency: getRandomFrequency(),
-      createdAt: new Date().toISOString(),
+function findOrCreateCluster(organisationCode, deviceId) {
+  // Initialize school if it doesn't exist
+  if (!schoolData[organisationCode]) {
+    schoolData[organisationCode] = {
+      clusters: {},
+      totalDevices: 0,
+      lastClusterNumber: 0,
     };
+  }
 
-    return {
-        clusterName: newClusterName,
-        cluster: school.clusters[newClusterName],
-        isExisting: false
-    };
+  const school = schoolData[organisationCode];
+
+  // Check if device already exists in any cluster
+  for (const clusterName in school.clusters) {
+    const cluster = school.clusters[clusterName];
+    const existingDevice = cluster.devices.find(
+      (device) => device.deviceId === deviceId
+    );
+    if (existingDevice) {
+      return {
+        clusterName: clusterName,
+        cluster: cluster,
+        isExisting: true,
+      };
+    }
+  }
+
+  // Device doesn't exist, find a cluster with space or create new one
+  for (const clusterName in school.clusters) {
+    const cluster = school.clusters[clusterName];
+    if (cluster.devices.length < MAX_DEVICES_PER_CLUSTER) {
+      return {
+        clusterName: clusterName,
+        cluster: cluster,
+        isExisting: false,
+      };
+    }
+  }
+
+  // All clusters are full, create a new cluster
+  school.lastClusterNumber += 1;
+  const newClusterName = `${organisationCode}_${school.lastClusterNumber}`;
+  school.clusters[newClusterName] = {
+    clusterNumber: school.lastClusterNumber,
+    devices: [],
+    hosts: [],
+    frequency: getRandomFrequency(),
+    createdAt: new Date().toISOString(),
+  };
+
+  return {
+    clusterName: newClusterName,
+    cluster: school.clusters[newClusterName],
+    isExisting: false,
+  };
 }
 
 // API endpoint to register/get host devices
 app.post("/api/get-hosts", async (req, res) => {
   try {
-    const { schoolCode, deviceId } = req.body;
+    const { organisationCode, deviceId } = req.body;
 
     // Validate input
-    if (!schoolCode || !deviceId) {
+    if (!organisationCode || !deviceId) {
       return res.status(400).json({
         success: false,
         message: "School code and device ID are required",
@@ -128,7 +130,7 @@ app.post("/api/get-hosts", async (req, res) => {
 
     // Find or create appropriate cluster
     const { clusterName, cluster, isExisting } = findOrCreateCluster(
-      schoolCode,
+      organisationCode,
       deviceId
     );
 
@@ -145,7 +147,7 @@ app.post("/api/get-hosts", async (req, res) => {
       }
 
       // Update school total devices count
-      schoolData[schoolCode].totalDevices += 1;
+      schoolData[organisationCode].totalDevices += 1;
     }
 
     // Find device position in cluster
@@ -185,16 +187,16 @@ app.post("/api/get-hosts", async (req, res) => {
 });
 
 // API endpoint to get school information
-app.get('/api/school/:schoolCode', (req, res) => {
-    try {
-        const { schoolCode } = req.params;
-        
-        if (!schoolData[schoolCode]) {
-            return res.status(404).json({
-                success: false,
-                message: 'School not found'
-            });
-        }
+app.get("/api/school/:organisationCode", (req, res) => {
+  try {
+    const { organisationCode } = req.params;
+
+    if (!schoolData[organisationCode]) {
+      return res.status(404).json({
+        success: false,
+        message: "School not found",
+      });
+    }
 
         const school = schoolData[schoolCode];
         
@@ -213,46 +215,45 @@ app.get('/api/school/:schoolCode', (req, res) => {
             };
         }
 
-        res.json({
-            success: true,
-            schoolCode: schoolCode,
-            totalDevices: school.totalDevices,
-            totalClusters: Object.keys(school.clusters).length,
-            lastClusterNumber: school.lastClusterNumber,
-            maxDevicesPerCluster: MAX_DEVICES_PER_CLUSTER,
-            clusters: clusterSummary
-        });
-
-    } catch (error) {
-        console.error('Error getting school info:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error'
-        });
-    }
+    res.json({
+      success: true,
+      organisationCode: organisationCode,
+      totalDevices: school.totalDevices,
+      totalClusters: Object.keys(school.clusters).length,
+      lastClusterNumber: school.lastClusterNumber,
+      maxDevicesPerCluster: MAX_DEVICES_PER_CLUSTER,
+      clusters: clusterSummary,
+    });
+  } catch (error) {
+    console.error("Error getting school info:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
 });
 
 // API endpoint to get specific cluster information
-app.get('/api/school/:schoolCode/cluster/:clusterNumber', (req, res) => {
-    try {
-        const { schoolCode, clusterNumber } = req.params;
-        
-        if (!schoolData[schoolCode]) {
-            return res.status(404).json({
-                success: false,
-                message: 'School not found'
-            });
-        }
+app.get("/api/school/:organisationCode/cluster/:clusterNumber", (req, res) => {
+  try {
+    const { organisationCode, clusterNumber } = req.params;
 
-        const clusterName = `${schoolCode}_${clusterNumber}`;
-        const cluster = schoolData[schoolCode].clusters[clusterName];
+    if (!schoolData[organisationCode]) {
+      return res.status(404).json({
+        success: false,
+        message: "School not found",
+      });
+    }
 
-        if (!cluster) {
-            return res.status(404).json({
-                success: false,
-                message: 'Cluster not found'
-            });
-        }
+    const clusterName = `${organisationCode}_${clusterNumber}`;
+    const cluster = schoolData[organisationCode].clusters[clusterName];
+
+    if (!cluster) {
+      return res.status(404).json({
+        success: false,
+        message: "Cluster not found",
+      });
+    }
 
         res.json({
             success: true,
@@ -278,17 +279,17 @@ app.get('/api/school/:schoolCode/cluster/:clusterNumber', (req, res) => {
 });
 
 // API endpoint to reset school data (for testing purposes)
-app.delete('/api/school/:schoolCode', async (req, res) => {
+app.delete('/api/school/:organisationCode', async (req, res) => {
     try {
-        const { schoolCode } = req.params;
+        const { organisationCode } = req.params;
         
-        if (schoolData[schoolCode]) {
-            delete schoolData[schoolCode];
+        if (schoolData[organisationCode]) {
+            delete schoolData[organisationCode];
             await saveData();
             
             res.json({
                 success: true,
-                message: `School ${schoolCode} data reset successfully`
+                message: `School ${organisationCode} data reset successfully`
             });
         } else {
             res.status(404).json({
@@ -307,19 +308,19 @@ app.delete('/api/school/:schoolCode', async (req, res) => {
 });
 
 // API endpoint to reset specific cluster data
-app.delete('/api/school/:schoolCode/cluster/:clusterNumber', async (req, res) => {
+app.delete('/api/school/:organisationCode/cluster/:clusterNumber', async (req, res) => {
     try {
-        const { schoolCode, clusterNumber } = req.params;
+        const { organisationCode, clusterNumber } = req.params;
         
-        if (!schoolData[schoolCode]) {
+        if (!schoolData[organisationCode]) {
             return res.status(404).json({
                 success: false,
                 message: 'School not found'
             });
         }
 
-        const clusterName = `${schoolCode}_${clusterNumber}`;
-        const cluster = schoolData[schoolCode].clusters[clusterName];
+        const clusterName = `${organisationCode}_${clusterNumber}`;
+        const cluster = schoolData[organisationCode].clusters[clusterName];
 
         if (!cluster) {
             return res.status(404).json({
@@ -329,10 +330,10 @@ app.delete('/api/school/:schoolCode/cluster/:clusterNumber', async (req, res) =>
         }
 
         // Update school total devices count
-        schoolData[schoolCode].totalDevices -= cluster.devices.length;
+        schoolData[organisationCode].totalDevices -= cluster.devices.length;
         
         // Remove cluster
-        delete schoolData[schoolCode].clusters[clusterName];
+        delete schoolData[organisationCode].clusters[clusterName];
         
         await saveData();
         
