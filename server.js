@@ -114,104 +114,74 @@ function findOrCreateCluster(schoolCode, deviceId) {
 }
 
 // API endpoint to register/get host devices
-app.post('/api/get-hosts', async (req, res) => {
-    try {
-        const { schoolCode, deviceId } = req.body;
+app.post("/api/get-hosts", async (req, res) => {
+  try {
+    const { schoolCode, deviceId } = req.body;
 
-        // Validate input
-        if (!schoolCode || !deviceId) {
-            return res.status(400).json({
-                success: false,
-                message: 'School code and device ID are required'
-            });
-        }
-
-        // Find or create appropriate cluster
-        const { clusterName, cluster, isExisting } = findOrCreateCluster(schoolCode, deviceId);
-
-        if (!isExisting) {
-            // Add new device to cluster
-            cluster.devices.push({
-                deviceId: deviceId,
-                registeredAt: new Date().toISOString()
-            });
-
-            // Update hosts list (max 3 hosts per cluster)
-            if (cluster.hosts.length < MAX_HOSTS_PER_CLUSTER) {
-                cluster.hosts.push(deviceId);
-            }
-
-            // Update school total devices count
-            schoolData[schoolCode].totalDevices += 1;
-        }
-
-        // Find device position in cluster
-        const deviceIndex = cluster.devices.findIndex(device => device.deviceId === deviceId);
-        
-        // Prepare response based on current device position in cluster
-        const response = {
-            success: true,
-            schoolCode: schoolCode,
-            clusterName: clusterName,
-            clusterNumber: cluster.clusterNumber,
-            deviceId: deviceId,
-            positionInCluster: deviceIndex + 1,
-            totalDevicesInCluster: cluster.devices.length,
-            totalDevicesInSchool: schoolData[schoolCode].totalDevices,
-          maxDevicesPerCluster: MAX_DEVICES_PER_CLUSTER,
-          frequency: cluster.frequency,
-        };
-
-        // Determine response based on device position in cluster
-        if (deviceIndex === 0) {
-            // First device in cluster (Host 1)
-            response.hostDeviceId = deviceId;
-            response.role = 'host1';
-            response.message = `You are the primary host for cluster ${clusterName}`;
-        } else if (deviceIndex === 1) {
-            // Second device in cluster (Host 2)
-            response.hostDeviceId = cluster.hosts[0]; // Return first host
-            response.host2DeviceId = deviceId;
-            response.role = 'host2';
-            response.message = `You are the secondary host for cluster ${clusterName}`;
-        } else if (deviceIndex === 2) {
-            // Third device in cluster (Host 3)
-            response.hostDeviceId = cluster.hosts[0]; // Return first host
-            response.host2DeviceId = cluster.hosts[1]; // Return second host
-            response.host3DeviceId = deviceId;
-            response.role = 'host3';
-            response.message = `You are the tertiary host for cluster ${clusterName}`;
-        } else {
-            // Fourth device onwards in cluster (Client devices)
-            response.hostDeviceId = cluster.hosts[0]; // Host 1
-            response.host2DeviceId = cluster.hosts[1]; // Host 2
-            response.host3DeviceId = cluster.hosts[2]; // Host 3
-            response.role = 'client';
-            response.message = `You are a client device in cluster ${clusterName}`;
-        }
-
-        // Add all hosts in cluster to response for clarity
-        response.clusterHosts = {
-            host1: cluster.hosts[0] || null,
-            host2: cluster.hosts[1] || null,
-            host3: cluster.hosts[2] || null
-        };
-
-        // Add cluster devices list
-        response.clusterDevices = cluster.devices.map(device => device.deviceId);
-
-        // Save data to file
-        await saveData();
-
-        res.json(response);
-
-    } catch (error) {
-        console.error('Error processing request:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Internal server error'
-        });
+    // Validate input
+    if (!schoolCode || !deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: "School code and device ID are required",
+      });
     }
+
+    // Find or create appropriate cluster
+    const { clusterName, cluster, isExisting } = findOrCreateCluster(
+      schoolCode,
+      deviceId
+    );
+
+    if (!isExisting) {
+      // Add new device to cluster
+      cluster.devices.push({
+        deviceId: deviceId,
+        registeredAt: new Date().toISOString(),
+      });
+
+      // Update hosts list (max 3 hosts per cluster)
+      if (cluster.hosts.length < MAX_HOSTS_PER_CLUSTER) {
+        cluster.hosts.push(deviceId);
+      }
+
+      // Update school total devices count
+      schoolData[schoolCode].totalDevices += 1;
+    }
+
+    // Find device position in cluster
+    const deviceIndex = cluster.devices.findIndex(
+      (device) => device.deviceId === deviceId
+    );
+
+    let message;
+    if (isExisting) {
+      message = "Device already mapped to the cluster";
+    } else if (deviceIndex === 0) {
+      message = `You are the primary host for cluster ${clusterName}`;
+    } else if (deviceIndex === 1) {
+      message = `You are the secondary host for cluster ${clusterName}`;
+    } else if (deviceIndex === 2) {
+      message = `You are the tertiary host for cluster ${clusterName}`;
+    } else {
+      message = `You are a client device in cluster ${clusterName}`;
+    }
+    const data = {
+      cluster_id: clusterName,
+      cluster_no: cluster.clusterNumber,
+      cluster_devices: cluster.devices.map((d) => d.deviceId),
+      max_devices_per_cluster: MAX_DEVICES_PER_CLUSTER,
+      message,
+    };
+
+    await saveData();
+    res.json({ data });
+  } catch (error) {
+    console.error("Error processing request:", error);
+    res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
 });
 
 // API endpoint to get school information
