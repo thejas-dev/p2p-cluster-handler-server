@@ -208,8 +208,8 @@ app.get('/api/school/:schoolCode', (req, res) => {
                 hosts: cluster.hosts,
                 devices: cluster.devices.map(device => device.deviceId),
                 isFull: cluster.devices.length >= MAX_DEVICES_PER_CLUSTER,
-                createdAt: cluster.createdAt
-              frequency: cluster.frequency,
+                createdAt: cluster.createdAt,
+                frequency: cluster.frequency,
             };
         }
 
@@ -264,8 +264,8 @@ app.get('/api/school/:schoolCode/cluster/:clusterNumber', (req, res) => {
             isFull: cluster.devices.length >= MAX_DEVICES_PER_CLUSTER,
             hosts: cluster.hosts,
             devices: cluster.devices,
-            createdAt: cluster.createdAt
-          frequency: cluster.frequency,
+            createdAt: cluster.createdAt,
+            frequency: cluster.frequency,
         });
 
     } catch (error) {
